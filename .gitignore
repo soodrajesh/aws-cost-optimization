@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Output reports
+reports/
+*.pdf
+
+# AWS credentials (never commit these)
+.env
+*.env
+credentials
+aws_credentials.json
+
+# Logs
+*.log
+logs/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/

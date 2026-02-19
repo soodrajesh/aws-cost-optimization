@@ -1,0 +1,10 @@
+boto3>=1.34.0
+reportlab>=4.1.0
+matplotlib>=3.8.0
+pandas>=2.2.0
+tqdm>=4.66.0
+colorama>=0.4.6
+
+# Development / testing
+pytest>=8.0.0
+moto[all]>=5.0.0
