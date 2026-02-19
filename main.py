@@ -71,8 +71,8 @@ Examples:
     )
     parser.add_argument(
         "--profile",
-        default="default",
-        help="AWS named profile (default: 'default')",
+        default=None,
+        help="AWS named profile from ~/.aws/credentials (optional; if omitted, uses default credential chain: env vars, instance profile, etc.)",
     )
     parser.add_argument(
         "--output",
@@ -341,7 +341,10 @@ def run(config: Config) -> ScanResult:
     print(f"{'='*60}{Style.RESET_ALL}\n")
 
     # Create session and get account metadata
-    print(f"{Fore.YELLOW}Connecting to AWS (profile: {config.profile})...{Style.RESET_ALL}")
+    if config.profile:
+        print(f"{Fore.YELLOW}Connecting to AWS (profile: {config.profile})...{Style.RESET_ALL}")
+    else:
+        print(f"{Fore.YELLOW}Connecting to AWS (default credential chain)...{Style.RESET_ALL}")
     session = create_session(config.profile)
     account_id = get_account_id(session)
     print(f"{Fore.GREEN}✓ Connected — Account: {account_id}{Style.RESET_ALL}")
@@ -461,7 +464,7 @@ def run(config: Config) -> ScanResult:
 
     return ScanResult(
         account_id=account_id,
-        profile=config.profile,
+        profile=config.profile or "default credential chain",
         scan_date=date.today().isoformat(),
         regions_scanned=regions,
         months_of_history=config.months,

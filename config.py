@@ -21,8 +21,8 @@ SUPPORTED_SERVICES_LIST: list[str] = [
 class Config:
     """Runtime configuration, populated from CLI arguments."""
 
-    profile: str = "default"
-    """AWS named profile to use for authentication."""
+    profile: Optional[str] = None
+    """AWS named profile to use for authentication. None = default credential chain (env, instance profile, etc.)."""
 
     regions: Optional[list[str]] = None
     """Explicit list of regions to scan. None means auto-discover all enabled regions."""

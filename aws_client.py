@@ -22,19 +22,35 @@ _RETRY_CONFIG = BotoConfig(
 )
 
 
-def create_session(profile: str) -> boto3.Session:
-    """Create a boto3 Session using the specified named profile."""
+def create_session(profile: Optional[str] = None) -> boto3.Session:
+    """
+    Create a boto3 Session.
+    If profile is None, uses the default credential chain (env vars, instance profile, etc.).
+    If profile is set, uses that named profile from ~/.aws/credentials or ~/.aws/config.
+    """
     try:
-        session = boto3.Session(profile_name=profile)
+        if profile is None or profile == "":
+            session = boto3.Session()
+        else:
+            session = boto3.Session(profile_name=profile)
         # Eagerly validate credentials exist
         session.get_credentials().get_frozen_credentials()
         return session
     except Exception as exc:
-        raise RuntimeError(
-            f"Failed to create AWS session for profile '{profile}'. "
-            f"Ensure the profile exists in ~/.aws/credentials or ~/.aws/config. "
-            f"Error: {exc}"
-        ) from exc
+        if profile:
+            msg = (
+                f"Failed to create AWS session for profile '{profile}'. "
+                f"Ensure the profile exists in ~/.aws/credentials or ~/.aws/config. "
+                f"Error: {exc}"
+            )
+        else:
+            msg = (
+                "Failed to create AWS session (default credential chain). "
+                "Ensure AWS credentials are set via environment variables (AWS_ACCESS_KEY_ID, "
+                "AWS_SECRET_ACCESS_KEY, AWS_SESSION_TOKEN), instance profile, or ~/.aws/credentials. "
+                f"Error: {exc}"
+            )
+        raise RuntimeError(msg) from exc
 
 
 def get_account_id(session: boto3.Session) -> str:

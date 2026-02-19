@@ -45,8 +45,8 @@ If you are running this as an **AWS Professional Services** cost optimisation re
 ## Requirements
 
 - Python 3.10+
-- AWS credentials configured (profile or environment variables)
-- The AWS profile must have the IAM permissions listed below
+- AWS credentials configured (environment variables, instance profile, or a named profile in `~/.aws/credentials`)
+- The credentials must have the IAM permissions listed below
 
 ## Installation
 
@@ -62,10 +62,10 @@ pip install -r requirements.txt
 ## Usage
 
 ```bash
-# Basic usage with default AWS profile
+# Basic usage (uses default credential chain: env vars, instance profile, or ~/.aws/credentials [default])
 python main.py
 
-# Specify a named AWS profile
+# Use a named AWS profile
 python main.py --profile my-profile
 
 # Custom output path
@@ -88,7 +88,7 @@ python main.py --months 3
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--profile` | `default` | AWS named profile to use |
+| `--profile` | *(optional)* | AWS named profile; if omitted, uses default credential chain (env vars, instance profile, etc.) |
 | `--output` | `aws-cost-report-YYYY-MM-DD.pdf` | Output PDF file path |
 | `--regions` | all enabled | Space-separated list of regions to scan |
 | `--services` | all | Space-separated list of services to analyse |
@@ -101,7 +101,7 @@ python main.py --months 3
 
 ## Required IAM Permissions
 
-The AWS profile needs the following read-only permissions:
+The AWS credentials (profile or default chain) need the following read-only permissions:
 
 ```json
 {
