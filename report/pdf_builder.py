@@ -12,16 +12,14 @@ Produces an executive-style PDF with:
 
 from __future__ import annotations
 
-import io
 import logging
 from datetime import date
-from typing import Optional
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import cm, mm
+from reportlab.lib.units import cm
 from reportlab.platypus import (
     BaseDocTemplate,
     Frame,
@@ -35,9 +33,8 @@ from reportlab.platypus import (
     Table,
     TableStyle,
 )
-from reportlab.platypus.flowables import KeepTogether
 
-from models import CostTrend, Finding, Recommendation, ScanResult, Severity
+from models import Recommendation, ScanResult, Severity
 from report import charts
 
 logger = logging.getLogger(__name__)
@@ -502,13 +499,12 @@ def _service_breakdown_table(result: ScanResult, s: dict) -> list:
 
     findings_by_service = result.findings_by_service
 
-    for i, trend in enumerate(result.cost_trends[:30]):  # cap at 30 rows
+    for trend in result.cost_trends[:30]:  # cap at 30 rows
         service_findings = findings_by_service.get(trend.service, [])
         trend_str = f"{trend.trend_pct:+.1f}%"
         flag = " ⚠" if trend.trend_pct > 20 else ""
         anomaly_str = "Yes" if trend.anomaly else "No"
 
-        row_bg = _TABLE_ALT_ROW if i % 2 == 0 else colors.white
         trend_colour = "#DC2626" if trend.trend_pct > 20 else ("#16A34A" if trend.trend_pct < -5 else "#374151")
 
         rows.append([
@@ -555,6 +551,7 @@ def _savings_roadmap(result: ScanResult, s: dict) -> list:
     matrix_header = [Paragraph(h, s["table_header"]) for h in
                      ["Category", "Items", "Monthly Savings", "Annual Savings", "Est. Hours", "ROI"]]
     matrix_rows = [matrix_header]
+    matrix_row_colours = []
 
     for cat in cat_order:
         recs = [r for r in result.recommendations if r.category == cat and r.total_saving > 0]
@@ -573,10 +570,15 @@ def _savings_roadmap(result: ScanResult, s: dict) -> list:
             Paragraph(f"{hours:.0f}h", s["table_cell_right"]),
             Paragraph(f"{roi:.1f}x", s["table_cell_right"]),
         ])
+        matrix_row_colours.append(cat_colours_rl[cat])
 
     col_widths = [3.5 * cm, 1.5 * cm, 3 * cm, 3 * cm, 2.5 * cm, 2.5 * cm]
     matrix_table = Table(matrix_rows, colWidths=col_widths, repeatRows=1)
     matrix_table.setStyle(_default_table_style(len(matrix_rows)))
+    # Highlight each category row with its matrix colour (overrides the
+    # generic alternating row shading applied above).
+    for row_idx, colour in enumerate(matrix_row_colours, start=1):
+        matrix_table.setStyle(TableStyle([("BACKGROUND", (0, row_idx), (-1, row_idx), colour)]))
     elements.append(matrix_table)
     elements.append(Spacer(1, 0.4 * cm))
 

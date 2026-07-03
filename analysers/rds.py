@@ -175,9 +175,9 @@ class RDSAnalyser(BaseAnalyser):
                         resource_id=db_id,
                         resource_name=db_id,
                         issue=(
-                            f"Non-production RDS running 24/7 — "
-                            f"AWS Instance Scheduler can stop it evenings/weekends (~65% saving). "
-                            f"RDS stops automatically after 7 days and can be restarted on demand."
+                            "Non-production RDS running 24/7 — "
+                            "AWS Instance Scheduler can stop it evenings/weekends (~65% saving). "
+                            "RDS stops automatically after 7 days and can be restarted on demand."
                         ),
                         estimated_monthly_saving_usd=saving,
                         severity=Severity.MEDIUM,

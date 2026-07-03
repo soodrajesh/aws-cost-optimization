@@ -9,7 +9,7 @@ Checks for:
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from analysers.base import BaseAnalyser
 from aws_client import paginate, safe_call

@@ -8,7 +8,6 @@ ready to be embedded into the PDF report via ReportLab.
 from __future__ import annotations
 
 import io
-from typing import Optional
 
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend, safe for server/CLI use
@@ -16,7 +15,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 import pandas as pd
 
-from models import CostTrend, Finding, ScanResult
+from models import CostTrend, ScanResult
 
 # Consistent colour palette
 _PALETTE = [

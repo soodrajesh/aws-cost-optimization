@@ -4,10 +4,8 @@ Unit tests for the recommendation engine in main.py.
 
 from __future__ import annotations
 
-import pytest
 
-from models import Finding, Recommendation, Severity
-from config import Config
+from models import Finding, Severity
 
 
 def _import_build_recommendations():

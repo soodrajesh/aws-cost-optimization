@@ -126,8 +126,8 @@ class S3Analyser(BaseAnalyser):
                 resource_id=bucket_name,
                 resource_name=bucket_name,
                 issue=(
-                    f"No AbortIncompleteMultipartUpload lifecycle rule — incomplete multipart upload "
-                    f"parts are stored at Standard pricing indefinitely until explicitly aborted"
+                    "No AbortIncompleteMultipartUpload lifecycle rule — incomplete multipart upload "
+                    "parts are stored at Standard pricing indefinitely until explicitly aborted"
                 ),
                 estimated_monthly_saving_usd=1.0,  # Conservative; actual savings depend on failed uploads
                 severity=Severity.LOW,

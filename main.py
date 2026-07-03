@@ -13,7 +13,6 @@ import argparse
 import logging
 import sys
 from datetime import date
-from typing import Optional
 
 import colorama
 from colorama import Fore, Style
@@ -191,7 +190,6 @@ def build_recommendations(
 
         # Build title and description
         title = f"Optimise {service} costs ({len(service_findings)} findings)"
-        descriptions = []
         steps_all: list[str] = []
 
         for ft in set(finding_types):
@@ -337,7 +335,7 @@ def _match_service(ce_name, services_with_findings, service_aliases):
 # ---------------------------------------------------------------------------
 def run(config: Config) -> ScanResult:
     print(f"\n{Fore.CYAN}{'='*60}")
-    print(f"  AWS Cost Optimisation Tool")
+    print("  AWS Cost Optimisation Tool")
     print(f"{'='*60}{Style.RESET_ALL}\n")
 
     # Create session and get account metadata
@@ -480,7 +478,7 @@ def run(config: Config) -> ScanResult:
 def print_summary(result: ScanResult) -> None:
     """Print a coloured summary to the terminal."""
     print(f"\n{Fore.CYAN}{'='*60}")
-    print(f"  SCAN SUMMARY")
+    print("  SCAN SUMMARY")
     print(f"{'='*60}{Style.RESET_ALL}")
     print(f"  Account:          {result.account_id}")
     print(f"  Regions scanned:  {len(result.regions_scanned)}")
@@ -508,12 +506,12 @@ def print_summary(result: ScanResult) -> None:
         st_saving = sum(r.total_saving for r in strategic)
         lt_saving = sum(r.total_saving for r in long_term)
 
-        print(f"\n  Savings by category:")
+        print("\n  Savings by category:")
         print(f"  {Fore.GREEN}  Quick Wins:   ${qw_saving:,.0f}/month ({len(quick_wins)} items){Style.RESET_ALL}")
         print(f"  {Fore.YELLOW}  Strategic:    ${st_saving:,.0f}/month ({len(strategic)} items){Style.RESET_ALL}")
         print(f"  {Fore.CYAN}  Long-term:    ${lt_saving:,.0f}/month ({len(long_term)} items){Style.RESET_ALL}")
 
-        print(f"\n  Top 3 recommendations:")
+        print("\n  Top 3 recommendations:")
         for i, rec in enumerate(result.recommendations[:3], 1):
             sev_colour = {
                 Severity.HIGH: Fore.RED,

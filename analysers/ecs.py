@@ -109,7 +109,7 @@ class ECSAnalyser(BaseAnalyser):
                 region=region,
                 resource_id=svc.get("serviceArn", svc_name),
                 resource_name=display_name,
-                issue=f"Idle service (0 running tasks, desired count 0)",
+                issue="Idle service (0 running tasks, desired count 0)",
                 estimated_monthly_saving_usd=0.0,  # No active cost if 0 tasks
                 severity=Severity.MEDIUM,
                 finding_type="idle_ecs_service",
@@ -196,8 +196,8 @@ class ECSAnalyser(BaseAnalyser):
                     resource_id=svc.get("serviceArn", svc_name),
                     resource_name=display_name,
                     issue=(
-                        f"Graviton/arm64 opportunity: Fargate task on X86_64 — "
-                        f"switch to ARM64 architecture for ~20% lower Fargate compute cost"
+                        "Graviton/arm64 opportunity: Fargate task on X86_64 — "
+                        "switch to ARM64 architecture for ~20% lower Fargate compute cost"
                     ),
                     estimated_monthly_saving_usd=saving,
                     severity=Severity.LOW,
@@ -230,7 +230,7 @@ class ECSAnalyser(BaseAnalyser):
                         region=region,
                         resource_id=svc.get("serviceArn", svc_name),
                         resource_name=display_name,
-                        issue=f"Non-production Fargate service on On-Demand — Fargate Spot could save ~50%",
+                        issue="Non-production Fargate service on On-Demand — Fargate Spot could save ~50%",
                         estimated_monthly_saving_usd=round(spot_savings, 2),
                         severity=Severity.LOW,
                         finding_type="fargate_spot_opportunity",

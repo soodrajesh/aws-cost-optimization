@@ -138,7 +138,6 @@ class DynamoDBAnalyser(BaseAnalyser):
                     ))
 
             # Check 3: No auto-scaling configured
-            table_arn = desc.get("TableArn", "")
             has_rcu_scaling = f"table/{table_name}" in scaling_targets.get("read", set())
             has_wcu_scaling = f"table/{table_name}" in scaling_targets.get("write", set())
 

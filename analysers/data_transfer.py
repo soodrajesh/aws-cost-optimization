@@ -20,7 +20,6 @@ import boto3
 from analysers.base import BaseAnalyser
 from config import Config
 from models import Finding, Severity
-from utils.cost_estimator import estimate_data_transfer
 
 logger = logging.getLogger(__name__)
 

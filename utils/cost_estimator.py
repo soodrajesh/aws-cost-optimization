@@ -12,7 +12,6 @@ specific instance type, region, and usage patterns.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 import boto3
 

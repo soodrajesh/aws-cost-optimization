@@ -18,9 +18,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
-from botocore.exceptions import ClientError
 
 from analysers.base import BaseAnalyser
 from aws_client import paginate, safe_call
@@ -220,9 +218,9 @@ class EC2Analyser(BaseAnalyser):
                             resource_id=instance_id,
                             resource_name=name,
                             issue=(
-                                f"Non-production instance running 24/7 — "
-                                f"AWS Instance Scheduler can save ~65% "
-                                f"(10hrs/day weekdays only)"
+                                "Non-production instance running 24/7 — "
+                                "AWS Instance Scheduler can save ~65% "
+                                "(10hrs/day weekdays only)"
                             ),
                             estimated_monthly_saving_usd=saving,
                             severity=Severity.MEDIUM,

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 
-from models import Finding, Recommendation, ScanResult, Severity, CostTrend, CostForecast
+from models import Finding, Recommendation, ScanResult, Severity
 
 
 class TestFinding:
