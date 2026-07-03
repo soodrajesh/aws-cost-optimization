@@ -1,5 +1,7 @@
 # AWS Cost Optimisation Tool
 
+[![CI](https://github.com/soodrajesh/aws-cost-optimization/actions/workflows/ci.yml/badge.svg)](https://github.com/soodrajesh/aws-cost-optimization/actions/workflows/ci.yml)
+
 A Python CLI that scans an AWS account for cost waste and turns it into a PDF a customer or a CTO will actually read. I built this after doing a few cost reviews manually with Cost Explorer exports and spreadsheets — the data-gathering part is repetitive and mechanical, so I automated it, and kept a human in the loop for everything that isn't (deciding what's actually safe to delete or resize).
 
 It is a point-in-time audit tool, not a monitoring service: you run it against a read-only profile, it produces a report, you act on the report. There's no persistent infrastructure, no scheduler, and it never calls a mutating AWS API.
@@ -48,8 +50,7 @@ The main design tradeoff is "read-only and advisory" versus "automated remediati
 - **Thresholds are static, not workload-aware.** CPU/utilisation thresholds (e.g. EC2 idle at <5% CPU) are config defaults, not learned from the account's actual traffic patterns, so noisy or bursty workloads can produce false positives — the report explicitly calls out "idle ≠ unused" for exactly this reason, but a human still has to confirm each finding.
 - **Single account, single credential set per run.** No built-in multi-account/AWS Organizations support; a multi-account rollup means running the tool once per account and combining the JSON exports externally.
 - **`utils/exceptions.py` is unused.** There's a small custom exception hierarchy (`AnalyserError`, `PricingError`, `PermissionDeniedError`) defined but never raised anywhere — actual error handling is done inline with `except ClientError` / `except Exception` in `analysers/base.py` and `aws_client.safe_call()`. It's dead scaffolding I haven't gone back and wired up.
-- **No CI.** Tests exist (`pytest`, 54 tests, all passing) but there's no GitHub Actions workflow running them — they're a local/manual `pytest tests/` for now.
-- **Manual deploy/run only.** This is a script you run from a laptop or a CI job you wire up yourself; there's no packaging (no `setup.py`/`pyproject.toml`), Docker image, or scheduled invocation included.
+- **CI runs lint + tests, but not deploy.** A GitHub Actions workflow (`.github/workflows/ci.yml`) runs `ruff` and the full `pytest` suite (54 tests) on every push/PR to `main` across Python 3.10-3.12. There's no packaging (no `setup.py`/`pyproject.toml`), Docker image, or scheduled invocation — this remains a script you run from a laptop or a CI job you wire up yourself for actual scans.
 - **Savings estimates are indicative, not exact.** They use list/on-demand pricing and stated assumptions (e.g. Instance Scheduler saves ~65%, Spot saves ~70%) — actual savings depend on the account's existing discounts (Savings Plans, EDP, etc.), which the tool doesn't have visibility into.
 
 ## Required IAM permissions
@@ -150,7 +151,7 @@ python main.py --format pdf json
 pytest tests/ -v
 ```
 
-54 tests, covering the recommendation engine, cost estimators, pricing fallback, models, and a PDF-generation smoke test.
+54 tests, covering the recommendation engine, cost estimators, pricing fallback, models, and a PDF-generation smoke test. These run automatically (plus `ruff` lint) on every push and PR to `main` via GitHub Actions — see the CI badge above.
 
 ## For AWS Pro Serv / consultants
 
