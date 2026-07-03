@@ -109,6 +109,9 @@ Requires Python 3.10+ and AWS credentials with the permissions above, via enviro
 
 ## Usage
 
+See [DEMO.md](DEMO.md) for a runbook on recording a live scan end to end, including
+what makes a convincing demo account and how to handle the redaction/publishing side.
+
 ```bash
 # Default credential chain, all services, all enabled regions
 python main.py
