@@ -1,107 +1,60 @@
 # AWS Cost Optimisation Tool
 
-A production-ready Python CLI tool that audits your AWS account for cost waste, analyses spend trends via AWS Cost Explorer, and generates a CTO-presentation-ready PDF report with charts, prioritised recommendations, and ROI calculations.
+A Python CLI that scans an AWS account for cost waste and turns it into a PDF a customer or a CTO will actually read. I built this after doing a few cost reviews manually with Cost Explorer exports and spreadsheets — the data-gathering part is repetitive and mechanical, so I automated it, and kept a human in the loop for everything that isn't (deciding what's actually safe to delete or resize).
 
-## Features
+It is a point-in-time audit tool, not a monitoring service: you run it against a read-only profile, it produces a report, you act on the report. There's no persistent infrastructure, no scheduler, and it never calls a mutating AWS API.
 
-- **Live AWS Pricing**: Fetches current on-demand prices from the AWS Price List API with 24hr in-memory cache and hardcoded fallback values.
-- **Cost Explorer Integration**: Pulls configurable months of actual spend by service, computes month-over-month trends, detects anomalies, and forecasts next month's spend.
-- **CE-driven service discovery**: Identifies top-billed services and flags coverage gaps where no detailed analyser exists.
-- **Multi-region scanning**: Automatically discovers and scans all enabled AWS regions in parallel.
-- **12 service analysers** (cost-related only; IAM excluded):
-  - EC2 (idle instances, unattached EBS volumes, unused Elastic IPs, old snapshots)
-  - RDS (idle databases, Multi-AZ non-prod, old snapshots)
-  - S3 (buckets missing lifecycle rules)
-  - Lambda (unused functions, over-provisioned memory)
-  - ELB (load balancers with no healthy targets, low traffic)
-  - CloudWatch (log groups without retention, stale alarms)
-  - NAT Gateway (idle gateways, high-traffic VPC endpoint opportunities)
-  - DynamoDB (idle tables, over-provisioned capacity, missing auto-scaling)
-  - ElastiCache (idle clusters, oversized nodes)
-  - ECS/Fargate (idle services, over-provisioned tasks, Spot opportunities)
-  - ECR (repositories without lifecycle policy, untagged images)
-  - Data Transfer (high internet egress, inter-region, cross-AZ costs)
-- **Recommendation engine** with:
-  - Categorisation: Quick Win / Strategic / Long-term
-  - ROI calculation: annualised savings ÷ implementation cost
-  - Per-recommendation implementation steps
-  - Risk assessment with callout boxes
-- **CTO-level PDF report** with:
-  - Cover page with account metadata and total savings
-  - Executive summary with dynamic narrative, current vs optimized spend chart
-  - **Savings Roadmap**: priority matrix table, ROI summary, 12-month projection chart
-  - Spend trend charts (line, stacked bar, sparklines)
-  - Service cost breakdown table
-  - **Coverage Gap Analysis**: heatmap of top billed services with analyser coverage status
-  - Per-service findings with risk callouts and implementation steps
-  - **Commitment-Based Savings Analysis**: RI/Savings Plans candidates
-- **JSON export**: Structured JSON output alongside PDF (`--format pdf json`)
-- **Production hardening**: adaptive retry/throttle handling, permission-aware error handling, file logging
+## What it does
 
-## For AWS Pro Serv / consultants
+- Pulls 6 months (configurable) of spend by service from Cost Explorer, computes month-over-month trend and flags anomalous months (spend > mean + 2 stddev).
+- Cross-references the highest-billed services against a registry of implemented analysers, so the report is explicit about which high-spend services were actually checked for waste and which were not (`uncovered_high_spend`).
+- Discovers all enabled regions and runs 12 resource-level analysers against each: EC2, RDS, S3, Lambda, ELB, CloudWatch, NAT Gateway, DynamoDB, ElastiCache, ECS/Fargate, ECR, and Data Transfer. Each one looks for the usual suspects for that service — idle instances, unattached EBS volumes, unused Elastic IPs, old snapshots, buckets without lifecycle rules, over-provisioned DynamoDB/Fargate capacity, idle NAT gateways, and so on.
+- Prices every finding using the live AWS Price List API (24-hour in-memory cache) with a hardcoded fallback table if `pricing:GetProducts` isn't granted or the API call fails.
+- Groups findings into recommendations, tags each one quick-win / strategic / long-term based on effort and risk, and calculates an ROI multiple (`annualised saving / (estimated hours * $150/hr)`).
+- Renders a PDF (cover page, executive summary, savings roadmap, spend trend charts, per-service findings with implementation steps, coverage gap analysis, Savings-Plan/RI candidates) and, optionally, the same data as JSON.
 
-If you are running this as an **AWS Professional Services** cost optimisation review, see **[Cost Review Approach](docs/COST_REVIEW_APPROACH.md)** for engagement scope, how to run the analysis, how to interpret and present the report, and a customer-facing prioritisation framework.
+IAM is intentionally out of scope — access-key age and unused roles are a security/hygiene concern, not a direct cost line, so there's no IAM analyser in this tool.
 
-## Requirements
+## Architecture
 
-- Python 3.10+
-- AWS credentials configured (environment variables, instance profile, or a named profile in `~/.aws/credentials`)
-- The credentials must have the IAM permissions listed below
-
-## Installation
-
-```bash
-# Create and activate a virtual environment
-python3 -m venv .venv
-source .venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
+```mermaid
+flowchart TD
+    CLI["main.py (CLI entry point)"] --> Session["aws_client.py: boto3 session + region discovery"]
+    Session --> CE["analysers/cost_explorer.py: 6mo trends, anomalies, forecast"]
+    CE --> Registry{{"utils/service_registry.py:\ntop-billed services vs. implemented analysers"}}
+    Registry -->|"has analyser"| Analysers["12 resource analysers\n(EC2, RDS, S3, Lambda, ELB, CloudWatch,\nNAT GW, DynamoDB, ElastiCache, ECS, ECR, Data Transfer)"]
+    Registry -->|"no analyser, spend > $100/mo"| Gaps["Coverage gap list"]
+    Analysers --> AWSAPIs[("Per-service describe/list APIs\n+ CloudWatch GetMetricStatistics")]
+    Analysers --> Estimator["utils/cost_estimator.py"]
+    Estimator --> Pricing["utils/pricing.py (PricingClient, 24h TTL cache)"]
+    Pricing --> PriceAPI[("AWS Price List API\n(falls back to hardcoded prices)")]
+    Analysers --> Findings[("Finding objects\n(one per wasteful resource)")]
+    Findings --> RecEngine["main.py: build_recommendations()\n+ utils/recommendation_metadata.py"]
+    CE --> RecEngine
+    RecEngine --> PDF["report/pdf_builder.py + charts.py"]
+    RecEngine --> JSON["report/json_exporter.py"]
+    PDF --> Output[("aws-cost-report-*.pdf")]
+    JSON --> OutputJSON[("aws-cost-report-*.json")]
 ```
 
-## Usage
+Everything above runs in a single process, in one pass, triggered by a human running `python main.py`. Cost Explorer is queried once up front (it's a single global API, not region-scoped) and its output does two jobs: it drives the spend-trend/forecast section of the report, and it tells the resource analysers which services are worth checking in the first place, plus which high-spend services have *no* analyser at all so that gap is visible in the report instead of silently missing.
 
-```bash
-# Basic usage (uses default credential chain: env vars, instance profile, or ~/.aws/credentials [default])
-python main.py
+The main design tradeoff is "read-only and advisory" versus "automated remediation." Every analyser only calls `Describe*`/`List*`/`GetMetricStatistics`-style APIs (see the IAM policy below), and every recommendation ships as a description plus a numbered list of manual steps (including the actual AWS CLI command for quick wins like deleting an EBS volume or releasing an EIP) rather than an action the tool takes itself. That's slower than auto-remediation, but it means the tool can be pointed at someone else's production account without a change-management conversation first — which matters if you're running this as a customer engagement rather than against your own account. The other real design choice is CE-driven service discovery: rather than hardcoding "these are the services we check," the tool asks Cost Explorer what's actually being billed and only claims coverage for what it can verify, which is also why the report has an explicit "coverage gap" section instead of pretending a 12-service tool covers everything.
 
-# Use a named AWS profile
-python main.py --profile my-profile
+## Known gaps
 
-# Custom output path
-python main.py --profile my-profile --output /tmp/aws-cost-report.pdf
+- **`--max-workers` doesn't do anything yet.** The CLI flag and `Config.max_workers` field exist, but region scanning inside `BaseAnalyser.analyse()` is a plain sequential `for region in regions` loop — there's no `ThreadPoolExecutor` behind it. The only real concurrency in the codebase is a `threading.Semaphore(5)` in `utils/pricing.py` limiting parallel Price List API calls. A full account scan across many regions is noticeably slow; wiring up real parallel region scanning is the next thing I'd do.
+- **No dry-run / diff mode.** The tool only reads and reports; there's nothing to "run" destructively, but there's also no way to compare two scans over time to see what got fixed — you'd have to diff two JSON exports yourself.
+- **Thresholds are static, not workload-aware.** CPU/utilisation thresholds (e.g. EC2 idle at <5% CPU) are config defaults, not learned from the account's actual traffic patterns, so noisy or bursty workloads can produce false positives — the report explicitly calls out "idle ≠ unused" for exactly this reason, but a human still has to confirm each finding.
+- **Single account, single credential set per run.** No built-in multi-account/AWS Organizations support; a multi-account rollup means running the tool once per account and combining the JSON exports externally.
+- **`utils/exceptions.py` is unused.** There's a small custom exception hierarchy (`AnalyserError`, `PricingError`, `PermissionDeniedError`) defined but never raised anywhere — actual error handling is done inline with `except ClientError` / `except Exception` in `analysers/base.py` and `aws_client.safe_call()`. It's dead scaffolding I haven't gone back and wired up.
+- **No CI.** Tests exist (`pytest`, 54 tests, all passing) but there's no GitHub Actions workflow running them — they're a local/manual `pytest tests/` for now.
+- **Manual deploy/run only.** This is a script you run from a laptop or a CI job you wire up yourself; there's no packaging (no `setup.py`/`pyproject.toml`), Docker image, or scheduled invocation included.
+- **Savings estimates are indicative, not exact.** They use list/on-demand pricing and stated assumptions (e.g. Instance Scheduler saves ~65%, Spot saves ~70%) — actual savings depend on the account's existing discounts (Savings Plans, EDP, etc.), which the tool doesn't have visibility into.
 
-# Scan specific regions only
-python main.py --regions us-east-1 eu-west-1
+## Required IAM permissions
 
-# Analyse specific services only
-python main.py --services ec2 rds s3
-
-# Only include findings with estimated savings above $10/month
-python main.py --min-saving 10
-
-# Use 3 months of Cost Explorer history instead of 6
-python main.py --months 3
-```
-
-## CLI Options
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--profile` | *(optional)* | AWS named profile; if omitted, uses default credential chain (env vars, instance profile, etc.) |
-| `--output` | `aws-cost-report-YYYY-MM-DD.pdf` | Output PDF file path |
-| `--regions` | all enabled | Space-separated list of regions to scan |
-| `--services` | all | Space-separated list of services to analyse |
-| `--min-saving` | `0` | Minimum estimated monthly saving (USD) to include a finding |
-| `--months` | `6` | Months of Cost Explorer history to retrieve |
-| `--max-workers` | `10` | Max parallel threads for region scanning |
-| `--format` | `pdf` | Output formats: `pdf`, `json`, or both |
-| `--debug` | off | Enable debug logging |
-| `--quiet` | off | Suppress INFO-level console output |
-
-## Required IAM Permissions
-
-The AWS credentials (profile or default chain) need the following read-only permissions:
+Everything below is read-only. `pricing:GetProducts` is optional — without it, the tool falls back to hardcoded prices and logs a warning.
 
 ```json
 {
@@ -141,39 +94,82 @@ The AWS credentials (profile or default chain) need the following read-only perm
 }
 ```
 
-> **Note:** `pricing:GetProducts` is optional. If not granted, the tool falls back to hardcoded prices with a warning.
+Note this is broader than strictly necessary in places (`ec2:Describe*` and `elasticloadbalancing:Describe*` grant more than the specific calls the analysers make) — I traded precision here for not having to maintain an exhaustive per-call action list every time an analyser adds a new `describe_*` call. If you're handing this profile to someone outside your own account, it's worth tightening this to the exact actions used.
 
-## Output
-
-The tool generates a PDF report at the specified output path (default: `aws-cost-report-YYYY-MM-DD.pdf`). With `--format pdf json`, a JSON export is also written alongside the PDF.
-
-## Running Tests
+## Installation
 
 ```bash
-# Install dev dependencies
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+```
 
-# Run all tests
+Requires Python 3.10+ and AWS credentials with the permissions above, via environment variables, an instance profile, or a named profile in `~/.aws/credentials`.
+
+## Usage
+
+```bash
+# Default credential chain, all services, all enabled regions
+python main.py
+
+# Named profile, custom output path
+python main.py --profile my-profile --output /tmp/aws-cost-report.pdf
+
+# Only scan specific regions
+python main.py --regions us-east-1 eu-west-1
+
+# Only run specific analysers
+python main.py --services ec2 rds s3
+
+# Only include findings worth more than $10/month
+python main.py --min-saving 10
+
+# 3 months of Cost Explorer history instead of the default 6
+python main.py --months 3
+
+# PDF and JSON both
+python main.py --format pdf json
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--profile` | *(default credential chain)* | Named AWS profile |
+| `--output` | `aws-cost-report-YYYY-MM-DD.pdf` | Output PDF path |
+| `--regions` | all enabled | Space-separated regions to scan |
+| `--services` | all 12 | Space-separated analysers to run |
+| `--min-saving` | `0` | Minimum estimated monthly saving (USD) to include a finding |
+| `--months` | `6` | Months of Cost Explorer history |
+| `--max-workers` | `10` | Accepted but currently unused — see Known gaps |
+| `--format` | `pdf` | `pdf`, `json`, or both |
+| `--debug` | off | Debug logging |
+| `--quiet` | off | Suppress INFO console output |
+
+## Running tests
+
+```bash
 pytest tests/ -v
-
-# Run a specific test file
-pytest tests/test_models.py -v
 ```
 
-## Project Structure
+54 tests, covering the recommendation engine, cost estimators, pricing fallback, models, and a PDF-generation smoke test.
+
+## For AWS Pro Serv / consultants
+
+If you're running this as a customer-facing cost review rather than against your own account, see [`docs/COST_REVIEW_APPROACH.md`](docs/COST_REVIEW_APPROACH.md) for how I scope the engagement, run the analysis, and present the findings.
+
+## Project structure
 
 ```
-aws-cost-optimisation/
-├── main.py                    # CLI entry point, orchestration, recommendation engine
-├── config.py                  # Configuration dataclass with validation
-├── aws_client.py              # Boto3 session factory and region discovery
-├── models.py                  # Data models (Finding, Recommendation, ScanResult, etc.)
+aws-cost-optimization/
+├── main.py                          # CLI entry point, orchestration, recommendation engine
+├── config.py                        # Config dataclass, thresholds, CLI validation
+├── aws_client.py                    # boto3 session factory, region discovery, retry config
+├── models.py                        # Finding, CostTrend, CostForecast, Recommendation, ScanResult
 ├── docs/
-│   └── COST_REVIEW_APPROACH.md  # AWS Pro Serv cost review approach and deliverables
+│   └── COST_REVIEW_APPROACH.md      # How to run this as a customer engagement
 ├── analysers/
-│   ├── base.py                # Abstract base analyser with permission-aware error handling
-│   ├── cost_explorer.py       # AWS Cost Explorer trends, forecasts, service discovery
-│   ├── ec2.py
+│   ├── base.py                      # Abstract base analyser, permission-aware error handling
+│   ├── cost_explorer.py             # CE trends, forecast, top-billed-service discovery
+│   ├── ec2.py                       # Idle/stopped instances, EBS, EIPs, snapshots, Graviton/Spot hints
 │   ├── rds.py
 │   ├── s3.py
 │   ├── lambda_.py
@@ -184,18 +180,19 @@ aws-cost-optimisation/
 │   ├── elasticache.py
 │   ├── ecs.py
 │   ├── ecr.py
-│   └── data_transfer.py
+│   └── data_transfer.py             # CE-usage-type driven, no resource enumeration
 ├── report/
-│   ├── charts.py              # matplotlib chart generation (8 chart types)
-│   ├── pdf_builder.py         # ReportLab PDF assembly (9 sections)
-│   └── json_exporter.py       # Structured JSON export
+│   ├── charts.py                    # matplotlib chart generation
+│   ├── pdf_builder.py               # ReportLab PDF assembly
+│   └── json_exporter.py             # Structured JSON export
 ├── utils/
-│   ├── pricing.py             # Live AWS Pricing API client with TTL cache
-│   ├── cost_estimator.py      # Savings estimation helpers
-│   ├── service_registry.py    # Centralised service name/alias registry
-│   └── exceptions.py          # Custom exception hierarchy
+│   ├── pricing.py                   # Live AWS Price List API client, TTL cache, fallback tables
+│   ├── cost_estimator.py            # Per-finding-type saving estimation
+│   ├── service_registry.py          # Service key <-> display name <-> CE name mapping
+│   ├── recommendation_metadata.py   # Effort/risk/steps per finding type
+│   └── exceptions.py                # Custom exception hierarchy (currently unused, see Known gaps)
 └── tests/
-    ├── conftest.py             # Shared fixtures
+    ├── conftest.py
     ├── test_models.py
     ├── test_cost_estimator.py
     ├── test_pricing.py
